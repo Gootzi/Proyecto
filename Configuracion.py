@@ -1,0 +1,16 @@
+import math
+
+ALTURA = 600
+ANCHURA = 800
+SENSIBILIDAD = 0.005
+VEL_ZOOM = 0.5
+R_MAX = 50.0
+R_MIN = 2.0
+PHI_MIN = 0.04
+PHI_MAX = math.pi - PHI_MIN
+FOV = 90
+ASPECT = 16/9
+NEAR = 0.1
+FAR = 100
+
+
