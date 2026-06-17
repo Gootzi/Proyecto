@@ -1,7 +1,6 @@
 import numpy as np
 import warnings
 import colorsys as color
-import Pantalla
 
 def producto_punto(x,y):
     x,y = np.array(x,dtype=np.float32), np.array(y,dtype=np.float32)
@@ -92,12 +91,16 @@ def colores (z):
     # Elige los colores en hls y los pasa a rgb y los asigna a un punto z en el espacio
     z = z.flatten()
     normalizado = (z - z.min()) / (z.max()-z.min())
-    colores = np.round(309 - 78 * (normalizado)) 
+
+    colores = np.round(231 + 78 * (normalizado)) 
+    luminosidad = np.round(40 + 30 * (normalizado))
+
+    colores = np.column_stack([colores,luminosidad]) 
     rgb = []
-    for i in colores:
-        i = (i) / (360)
-        h,l,s = i,0.5,1
-        r,g,b = color.hls_to_rgb(h,l,s)
+    for c,l in colores:
+        i = (c) / (360)
+        e = l / 100
+        r,g,b = color.hls_to_rgb(i,e,1)
         r,g,b = r*255,g*255,b*255
         rgb.append([r,g,b])
     
@@ -132,18 +135,50 @@ def completa (meshx,meshy,meshz):
 
     return completo,indices_tri
 
-# Si existe algun valor que matematicamente es imposible, existe "RuntimeWarning"
-# El codigo lo detecta y aplica la funcion verificar, si no, continúa
-with warnings.catch_warnings(record=True) as indeterminado:
-    puntosx, puntosy = np.linspace(-10,10,100), np.linspace(-10,10,100)
-    meshgridx,meshgridy = np.meshgrid(puntosx,puntosy)
-    puntosz = np.pow(meshgridx,2) * np.pow(meshgridy,2)
-    if len(indeterminado) > 0:
-        puntosz = verificar(puntosz)  
+def usuario (fun):
+    operaciones = {
+        "raiz": np.sqrt,      "log": np.log,
+        "exp":  np.exp,       "sin": np.sin,
+        "cos":  np.cos,       "tan": np.tan,
+        "pi" :  np.pi,        "e"  : np.e,
+        "abs":  np.abs        
+    }
 
-com,ind = completa(meshgridx,meshgridy,puntosz)
+    try:
+        realizar = compile(fun, '<string>', 'eval')
+    except Exception as error:
+        return None, str(error)
+    
+    def f(x,y):
+        incog = {"x" : x, "y": y, **operaciones}
+        return eval(realizar, None, incog)
 
-ind = np.array(ind.flatten(),dtype=np.uint32)
+    return f, None
+
+def generar(fun):
+    try:
+        f, error = usuario(fun)
+        if error:
+            return None,None,error
+        
+        # Si existe algun valor que matematicamente es imposible, existe "RuntimeWarning"
+        # El codigo lo detecta y aplica la funcion verificar, si no, continúa
+        with warnings.catch_warnings(record=True) as indeterminado:
+            puntosx, puntosy = np.linspace(-10,10,100), np.linspace(-10,10,100)
+            meshx,meshy = np.meshgrid(puntosx,puntosy)
+            puntosz = f(meshx,meshy)
+            if len(indeterminado) > 0:
+                puntosz = verificar(puntosz)  
+
+        com,ind = completa(meshx,meshy,puntosz)
+        ind = np.array(ind.flatten(),dtype=np.uint32)
+        
+        return com, ind, None
+
+    except Exception as error:
+        return None, None, str(error)
+
+com, ind, _ = np.array([0.0]),np.array([0.0]),None
 
 
 
