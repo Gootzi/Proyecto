@@ -5,7 +5,7 @@ b = np.linspace(-2,2,5)
 meshx,meshy = np.meshgrid(a,b)
 meshz = meshx*meshy
 
-#print(a)
+print(a)
 #print(meshx,meshy)
 #print(meshz)
 
