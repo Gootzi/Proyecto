@@ -63,6 +63,52 @@ def crear_vao(vbo,ebo):
 
     return vao
 
+def crear_vao_malla():
+
+    vertices = G3.cuadricula
+
+    vbo = glGenBuffers(1)
+    glBindBuffer(GL_ARRAY_BUFFER, vbo)
+    glBufferData(GL_ARRAY_BUFFER, vertices.nbytes, vertices, GL_STATIC_DRAW)
+
+    vao = glGenVertexArrays(1)
+    glBindVertexArray(vao)
+    glBindBuffer(GL_ARRAY_BUFFER, vbo)
+
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 12, ctypes.c_void_p(0))
+    glEnableVertexAttribArray(0)
+
+    glBindVertexArray(0)
+    glBindBuffer(GL_ARRAY_BUFFER, 0)
+
+    return vao, vbo
+
+def crear_vaos_ejes():
+    def _vao_desde(datos, stride):
+        vbo = glGenBuffers(1)
+        vao = glGenVertexArrays(1)
+
+        glBindVertexArray(vao)
+        glBindBuffer(GL_ARRAY_BUFFER, vbo)
+        glBufferData(GL_ARRAY_BUFFER, datos.nbytes, datos, GL_STATIC_DRAW)
+
+        
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride, ctypes.c_void_p(0))
+        glEnableVertexAttribArray(0)
+
+        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, stride, ctypes.c_void_p(12))
+        glEnableVertexAttribArray(1)
+
+        glBindVertexArray(0)
+        glBindBuffer(GL_ARRAY_BUFFER, 0)
+        return vao
+
+    stride = 6 * 4 
+    vao_lin = _vao_desde(G3.ejes_lineas, stride)
+    vao_tri = _vao_desde(G3.ejes_tris,   stride)
+
+    return vao_lin, vao_tri
+
 # VBO = Vertex Buffer Object
 def crear_vbo ():
     vertices = G3.com
@@ -147,6 +193,47 @@ void main() {
 }
 """
 
+MALLA_VERT = """
+#version 330 core
+layout (location = 0) in vec3 aPos;
+uniform mat4 uModelo;
+uniform mat4 uVista;
+uniform mat4 uProyeccion;
+void main() {
+    gl_Position = uProyeccion * uVista * uModelo * vec4(aPos, 1.0);
+}
+"""
+
+MALLA_FRAG = """
+#version 330 core
+out vec4 FragColor;
+void main() {
+    FragColor = vec4(0.0, 0.0, 0.0, 0.25);
+}
+"""
+
+EJES_VERT = """
+#version 330 core
+layout (location = 0) in vec3 aPos;
+layout (location = 1) in vec3 aColor;
+uniform mat4 uVista;
+uniform mat4 uProyeccion;
+out vec3 vColor;
+void main() {
+    gl_Position = uProyeccion * uVista * vec4(aPos, 1.0);
+    vColor = aColor;
+}
+"""
+
+EJES_FRAG = """
+#version 330 core
+in vec3 vColor;
+out vec4 FragColor;
+void main() {
+    FragColor = vec4(vColor, 1.0);
+}
+"""
+
 def compile_shader(origen, shaderT):
     shader = glCreateShader(shaderT)   # Pointer con un GL_VERTEX_SHADER o GL_FRAGMENT_SHADER
     glShaderSource(shader, origen)
@@ -192,6 +279,11 @@ def actualizar (vbo, ebo, ver, ind):
                  ind,
                  GL_DYNAMIC_DRAW)
     
+    glBindBuffer(GL_ARRAY_BUFFER, 0)
+
+def actualizar_malla(vbo_malla, nueva_malla):
+    glBindBuffer(GL_ARRAY_BUFFER, vbo_malla)
+    glBufferData(GL_ARRAY_BUFFER, nueva_malla.nbytes, nueva_malla, GL_DYNAMIC_DRAW)
     glBindBuffer(GL_ARRAY_BUFFER, 0)
 
 def crear_programa_ui():
@@ -248,14 +340,14 @@ def _renderizar_quad_ui(programa_ui,tex):
     glDeleteBuffers(1, [vbo])
     glDeleteBuffers(1, [ebo])
 
-def crear_ui (window, fuente, tex_fun, usario, momentaneo, error, programa_ui):
+def crear_ui (window, fuente, tex_fun, usuario, momentaneo, error, programa_ui, mostrar_ejes):
 
     ancho,alto = window.get_size()
 
     ui = pygame.Surface((ancho,alto), pygame.SRCALPHA)
     ui.fill((0,0,0,0))
     
-    if usario:
+    if usuario:
         pygame.draw.rect(ui, (0, 0, 0, 160), (10, alto - 50, ancho - 20, 36))
         texto = fuente.render(momentaneo, True, (255, 255, 100))
     else:
@@ -266,6 +358,15 @@ def crear_ui (window, fuente, tex_fun, usario, momentaneo, error, programa_ui):
     if error:
         error_surf = fuente.render(error, True, (255, 80, 80))
         ui.blit(error_surf, (20, alto - 70))
+    
+    btn_w, btn_h = 64, 32
+    btn_x, btn_y = ancho - btn_w - 16, 16
+    color_btn  = (60, 120, 60, 200) if mostrar_ejes else (80, 80, 80, 200)
+    label_btn  = "Ejes" if mostrar_ejes else "Ejes"
+    pygame.draw.rect(ui, color_btn, (btn_x, btn_y, btn_w, btn_h), border_radius=6)
+    pygame.draw.rect(ui, (200, 200, 200, 255), (btn_x, btn_y, btn_w, btn_h), width=1, border_radius=6)
+    btn_txt = fuente.render(label_btn, True, (255, 255, 255))
+    ui.blit(btn_txt, (btn_x + 10, btn_y + 7))
 
     data = pygame.image.tostring(ui, "RGBA", True)
 
@@ -280,16 +381,20 @@ def crear_ui (window, fuente, tex_fun, usario, momentaneo, error, programa_ui):
 
     glDeleteTextures(1, [tex])
 
+    return pygame.Rect(btn_x, btn_y, btn_w, btn_h)
+
 def main():
 
     phi = math.pi/4
     theta = 1.0
-    radio = 10.0
+    radio = 20.0
 
     tex_funcion = "[Enter]"
     input_usuario = False
     input_momentaneo = ""
     tex_error = ""
+    mostrar_ejes    = True    
+    rect_ejes   = pygame.Rect(0, 0, 110, 32)
 
     screen = init_window()
     glEnable(GL_DEPTH_TEST)
@@ -301,6 +406,19 @@ def main():
     ebo = crear_ebo()
     vao = crear_vao(vbo, ebo)
     program = crear_programa(VERTICE_SHADER,FRAGMENT_SHADER)
+
+    programa_malla = crear_programa(MALLA_VERT, MALLA_FRAG)
+    vao_malla, vbo_malla = crear_vao_malla()
+    malla_can = len(G3.cuadricula)
+
+    programa_ejes = crear_programa(EJES_VERT, EJES_FRAG)    
+    vao_eje_lin, vao_eje_tri = crear_vaos_ejes()             
+    ejes_vis_ubi = glGetUniformLocation(programa_ejes, "uVista")       
+    ejes_pro_ubi = glGetUniformLocation(programa_ejes, "uProyeccion")
+
+    malla_mod = glGetUniformLocation(programa_malla, "uModelo")
+    malla_vis = glGetUniformLocation(programa_malla, "uVista")
+    malla_pro = glGetUniformLocation(programa_malla, "uProyeccion")
 
     modelo_ubi = glGetUniformLocation(program, "uModelo")
     vista_ubi = glGetUniformLocation(program, "uVista")
@@ -320,10 +438,16 @@ def main():
                 Abierto = False
                 return
             
+            elif evento.type == pygame.MOUSEBUTTONDOWN and evento.button == 1:
+                if not input_usuario:
+                    mx, my = evento.pos
+                    if rect_ejes.collidepoint(mx, my):
+                        mostrar_ejes = not mostrar_ejes
+            
             elif evento.type == pygame.KEYDOWN:
                 if evento.key == pygame.K_RETURN:
                     if input_usuario:
-                        n_com, n_ind, error = G3.generar(input_momentaneo)
+                        n_com, n_ind, n_malla, error = G3.generar(input_momentaneo)
                         if error:
                             tex_error = f"Error: {error}"
                         elif n_com is None or n_ind is None:
@@ -332,7 +456,9 @@ def main():
                             tex_funcion = input_momentaneo
                             tex_error = ""
                             ind_can = len(n_ind)
+                            malla_can = len(n_malla)
                             actualizar(vbo, ebo, n_com, n_ind)
+                            actualizar_malla(vbo_malla, n_malla)
                         input_usuario = False
                         input_momentaneo = ""
                     else:
@@ -349,38 +475,33 @@ def main():
                         input_momentaneo = input_momentaneo[:-1]
                     else:
                         input_momentaneo += evento.unicode
-            
-
                 
             elif evento.type == pygame.MOUSEMOTION:
                 if evento.buttons[0]:
-
-                    dx, dy = evento.rel
-
-                    theta -= dx * CF.SENSIBILIDAD
-
-                    phi -= dy * CF.SENSIBILIDAD
-                    phi = max(CF.PHI_MIN, min(CF.PHI_MAX, phi))
+                    if not rect_ejes.collidepoint(evento.pos):  # ← no rotar si está sobre el botón
+                        dx, dy  = evento.rel
+                        theta -= dx * CF.SENSIBILIDAD
+                        phi -= dy * CF.SENSIBILIDAD
+                        phi = max(CF.PHI_MIN, min(CF.PHI_MAX, phi))
             
             elif evento.type == pygame.MOUSEWHEEL:
-
                 radio -= evento.y * CF.VEL_ZOOM
                 radio = max(CF.R_MIN, min(CF.R_MAX,radio))
         
 
-        modelo = CM.escala(3,3,3)
+        modelo = CM.escala(8,8,8)
         vista = CM.pos_cam(phi,theta,radio)
         ancho,alto = screen.get_size()
         proyeccion = CM.proyeccion(CF.FOV, ancho/alto,CF.NEAR, CF.FAR)
+
+        glClearColor(1.0, 1.0, 1.0, 1.0)
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
 
         glUseProgram(program)
 
         glUniformMatrix4fv(modelo_ubi,     1, GL_TRUE, modelo)
         glUniformMatrix4fv(vista_ubi,      1, GL_TRUE, vista)
         glUniformMatrix4fv(proyeccion_ubi, 1, GL_TRUE, proyeccion)
-
-        glClearColor(1.0, 1.0, 1.0, 1.0)
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
 
         glBindVertexArray(vao)
         glDrawElements(
@@ -391,8 +512,37 @@ def main():
         )
         glBindVertexArray(0)
 
+        glUseProgram(programa_malla)
+
+        glUniformMatrix4fv(malla_mod, 1, GL_TRUE, modelo)
+        glUniformMatrix4fv(malla_vis, 1, GL_TRUE, vista)
+        glUniformMatrix4fv(malla_pro, 1, GL_TRUE, proyeccion)
+
+        glEnable(GL_BLEND)
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+        glLineWidth(1)
+
+        glDepthFunc(GL_LEQUAL)
+        glBindVertexArray(vao_malla)
+        glDrawArrays(GL_LINES, 0, malla_can)
+
+        glBindVertexArray(0)
+        glDepthFunc(GL_LESS) 
+        glDisable(GL_BLEND)
+
+        if mostrar_ejes:
+            glUseProgram(programa_ejes)
+            glUniformMatrix4fv(ejes_vis_ubi, 1, GL_TRUE, vista)
+            glUniformMatrix4fv(ejes_pro_ubi, 1, GL_TRUE, proyeccion)
+            glLineWidth(2.0)
+            glBindVertexArray(vao_eje_lin)
+            glDrawArrays(GL_LINES, 0, len(G3.ejes_lineas))
+            glBindVertexArray(vao_eje_tri)
+            glDrawArrays(GL_TRIANGLES, 0, len(G3.ejes_tris))
+            glBindVertexArray(0)
+
         glUseProgram(programa_ui)
-        crear_ui(screen, fuente, tex_funcion, input_usuario,input_momentaneo, tex_error, programa_ui)
+        rect_ejes = crear_ui(screen, fuente, tex_funcion, input_usuario,input_momentaneo, tex_error, programa_ui, mostrar_ejes)
 
         pygame.display.flip()
         reloj.tick(30)   

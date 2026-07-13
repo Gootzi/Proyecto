@@ -92,7 +92,7 @@ def colores (z):
     z = z.flatten()
     normalizado = (z - z.min()) / (z.max()-z.min())
 
-    colores = np.round(231 + 78 * (normalizado)) 
+    colores = np.round(231 + 120 * (normalizado)) 
     luminosidad = np.round(40 + 30 * (normalizado))
 
     colores = np.column_stack([colores,luminosidad]) 
@@ -115,6 +115,7 @@ def colores (z):
     return np.array(rgb_nor)
 
 def completa (meshx,meshy,meshz):
+
     lista = lista_normales(meshx,meshy,meshz)
 
     vectores = np.array(lista[0],dtype=np.float32)
@@ -155,16 +156,95 @@ def usuario (fun):
 
     return f, None
 
+def malla (meshx,meshy,meshz,cuad=3):
+
+    lineas = []
+
+    fil,col = meshx.shape
+
+    mx = meshx.copy()
+    my = meshy.copy()
+    mz = meshz.copy()
+    for arr in [mx, my, mz]:
+        vmax = np.abs(arr).max()
+        if vmax > 0:
+            arr /= vmax
+
+    for i in range(0,fil,cuad):
+        for j in range(col - 1):
+            lineas.append([float(mx[i,j]), float(my[i,j]), float(mz[i,j])])
+            lineas.append([float(mx[i,j + 1]), float(my[i,j + 1]), float(mz[i,j + 1])])
+
+    for i in range(0,col,cuad):
+        for j in range(fil - 1):
+            lineas.append([float(mx[j,i]), float(my[j,i]), float(mz[j,i])])
+            lineas.append([float(mx[j + 1,i]), float(my[j + 1,i]), float(mz[j + 1,i])]) 
+    
+    return np.array(lineas, dtype=np.float32)
+
+def ejes(largo=12.0, radio_flecha=0.3, altura_flecha=0.8, segmentos=12):
+
+    def cono(origen, punta, derecha, arriba, r, h, segs, color):
+        tris = []
+        base = origen  
+        for i in range(segs):
+            a0 = 2 * np.pi * i / segs
+            a1 = 2 * np.pi * (i + 1) / segs
+            p0 = base + r * (np.cos(a0) * derecha + np.sin(a0) * arriba)
+            p1 = base + r * (np.cos(a1) * derecha + np.sin(a1) * arriba)
+            tris.extend([
+                [*p0, *color],
+                [*p1, *color],
+                [*punta, *color],
+            ])
+        return tris
+
+    lineas = []
+    tris   = []
+
+    lineas.extend([[0,0,0, 1.0,0.2,0.2], [largo,0,0, 1.0,0.2,0.2]])
+    tris.extend(cono(
+        origen  = np.array([largo, 0, 0]),
+        punta   = np.array([largo + altura_flecha, 0, 0]),
+        derecha = np.array([0, 1, 0]),
+        arriba  = np.array([0, 0, 1]),
+        r=radio_flecha, h=altura_flecha, segs=segmentos,
+        color=[1.0, 0.2, 0.2]
+    ))
+
+    lineas.extend([[0,0,0, 0.2,1.0,0.2], [0,largo,0, 0.2,1.0,0.2]])
+    tris.extend(cono(
+        origen  = np.array([0, largo, 0]),
+        punta   = np.array([0, largo + altura_flecha, 0]),
+        derecha = np.array([1, 0, 0]),
+        arriba  = np.array([0, 0, 1]),
+        r=radio_flecha, h=altura_flecha, segs=segmentos,
+        color=[0.2, 1.0, 0.2]
+    ))
+
+    lineas.extend([[0,0,0, 0.2,0.4,1.0], [0,0,largo, 0.2,0.4,1.0]])
+    tris.extend(cono(
+        origen  = np.array([0, 0, largo]),
+        punta   = np.array([0, 0, largo + altura_flecha]),
+        derecha = np.array([1, 0, 0]),
+        arriba  = np.array([0, 1, 0]),
+        r=radio_flecha, h=altura_flecha, segs=segmentos,
+        color=[0.2, 0.4, 1.0]
+    ))
+
+    return (np.array(lineas, dtype=np.float32),
+            np.array(tris,   dtype=np.float32))
+
 def generar(fun):
     try:
         f, error = usuario(fun)
         if error:
-            return None,None,error
+            return None,None,None,error
         
         # Si existe algun valor que matematicamente es imposible, existe "RuntimeWarning"
         # El codigo lo detecta y aplica la funcion verificar, si no, continúa
         with warnings.catch_warnings(record=True) as indeterminado:
-            puntosx, puntosy = np.linspace(-10,10,100), np.linspace(-10,10,100)
+            puntosx, puntosy = np.linspace(-10,10,150), np.linspace(-10,10,150)
             meshx,meshy = np.meshgrid(puntosx,puntosy)
             puntosz = f(meshx,meshy)
             if len(indeterminado) > 0:
@@ -172,14 +252,16 @@ def generar(fun):
 
         com,ind = completa(meshx,meshy,puntosz)
         ind = np.array(ind.flatten(),dtype=np.uint32)
+        cuadricula = malla(meshx, meshy, puntosz, cuad=3)
         
-        return com, ind, None
+        return com, ind, cuadricula, None
 
     except Exception as error:
-        return None, None, str(error)
+        return None, None, None, str(error)
+    
+ejes_lineas, ejes_tris = ejes()
 
-com, ind, _ = np.array([0.0]),np.array([0.0]),None
-
+com, ind, cuadricula, _ = np.array([0.0]),np.array([0.0]),np.array([0.0]),None
 
 
 

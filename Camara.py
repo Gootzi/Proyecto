@@ -1,7 +1,7 @@
 import numpy as np
 from Graficos_3D import producto_cruz,producto_punto
 import math
-import Configuracion as CF
+
 
 def escala(x,y,z):
 
