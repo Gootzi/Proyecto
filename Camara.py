@@ -2,7 +2,7 @@ import numpy as np
 from Graficos_3D import producto_cruz,producto_punto
 import math
 
-
+#Formula para escalar
 def escala(x,y,z):
 
     esc = np.array([
