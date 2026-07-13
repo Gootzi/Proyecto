@@ -6,7 +6,7 @@ import math
 import Configuracion as CF
 import Graficos_3D as G3 
 import Camara as CM
-import ctypes
+import ctypes #Para usar comando de c
 
 
 # Crea los valores iniciales para una ventana
