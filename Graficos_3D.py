@@ -88,7 +88,7 @@ def lista_normales(meshx,meshy,meshz):
 
 #cambiar la luminosidad 
 def colores (z):
-    # Elige los colores en hls y los pasa a rgb y los asigna a un punto z en el espacio
+    # Elige los colores en hsl y los pasa a rgb y los asigna a un punto z en el espacio
     z = z.flatten()
     normalizado = (z - z.min()) / (z.max()-z.min())
 
