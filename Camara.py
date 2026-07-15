@@ -78,30 +78,6 @@ def proyeccion(fov,aspecto,cerca,lejos):
 
     return matriz
 
-def div_perspec (matriz):
-
-    w = matriz[3]
-    return matriz/w
-
-# Convierte el cubo perspectiva a pixeles en pantalla
-def imagen (norm,alto,ancho):
-
-    x = (norm[0] + 1) / 2 * ancho
-    y = (1 - norm[1]) / 2 * alto
-    z = (norm[2] + 1) / 2
-
-    return np.array([x,y,z])
-
-# Devuelve los cambios en la proyeccion para mostrarlas en pantalla
-def proyectar_vertice (vertice, MVP, ancho, alto):
-
-    homogenea = np.array([vertice[0],vertice[1],vertice[2],1.0])
-    perspectiva = MVP @ homogenea
-    if perspectiva[3] <= 0:
-        return None
-    normalizada = div_perspec(perspectiva)
-
-    return imagen(normalizada, alto, ancho)
 
 
 
